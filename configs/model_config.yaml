@@ -1,0 +1,10 @@
+supervised:
+  threshold: 0.5
+
+anomaly:
+  contamination: 0.01
+
+deep_learning:
+  random_seed: 42
+  epochs: 50
+  batch_size: 256

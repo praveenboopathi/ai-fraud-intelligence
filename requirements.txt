@@ -1,0 +1,16 @@
+numpy
+pandas
+scikit-learn
+scipy
+matplotlib
+seaborn
+pyyaml
+python-dotenv
+pydantic
+joblib
+
+pytest
+pytest-cov
+ruff
+jupyter
+ipykernel
