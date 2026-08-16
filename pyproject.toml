@@ -21,6 +21,8 @@ dependencies = [
     "python-dotenv",
     "pydantic",
     "joblib",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]
