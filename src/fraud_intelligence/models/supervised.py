@@ -24,7 +24,9 @@ class ClassificationMetrics:
     pr_auc: float
 
 
-def prepare_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
+def prepare_features(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.Series]:
     if TARGET_COLUMN not in df.columns:
         raise ValueError(f"Missing target column: {TARGET_COLUMN}")
 
@@ -37,13 +39,16 @@ def prepare_features(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
 def train_logistic_regression(
     x_train: pd.DataFrame,
     y_train: pd.Series,
+    random_state: int = 42,
 ) -> LogisticRegression:
     model = LogisticRegression(
         max_iter=1000,
         class_weight="balanced",
-        random_state=42,
+        random_state=random_state,
     )
+
     model.fit(x_train, y_train)
+
     return model
 
 
@@ -57,9 +62,27 @@ def evaluate_classifier(
     predictions = (probabilities >= threshold).astype(int)
 
     return ClassificationMetrics(
-        precision=precision_score(y_test, predictions, zero_division=0),
-        recall=recall_score(y_test, predictions, zero_division=0),
-        f1=f1_score(y_test, predictions, zero_division=0),
-        roc_auc=roc_auc_score(y_test, probabilities),
-        pr_auc=average_precision_score(y_test, probabilities),
+        precision=precision_score(
+            y_test,
+            predictions,
+            zero_division=0,
+        ),
+        recall=recall_score(
+            y_test,
+            predictions,
+            zero_division=0,
+        ),
+        f1=f1_score(
+            y_test,
+            predictions,
+            zero_division=0,
+        ),
+        roc_auc=roc_auc_score(
+            y_test,
+            probabilities,
+        ),
+        pr_auc=average_precision_score(
+            y_test,
+            probabilities,
+        ),
     )

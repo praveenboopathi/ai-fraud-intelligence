@@ -73,3 +73,14 @@ def test_isolation_forest_is_reproducible() -> None:
         predictions_1.to_numpy(),
         predictions_2.to_numpy(),
     )
+def test_isolation_forest_accepts_configuration() -> None:
+    df = make_dataset()
+
+    model = fit_isolation_forest(
+        df,
+        contamination=0.01,
+        random_state=123,
+    )
+
+    assert model.contamination == 0.01
+    assert model.random_state == 123

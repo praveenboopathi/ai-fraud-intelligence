@@ -69,3 +69,14 @@ def test_classifier_evaluation_returns_metrics() -> None:
     assert np.isfinite(values).all()
     assert (values >= 0).all()
     assert (values <= 1).all()
+def test_logistic_regression_accepts_random_state() -> None:
+    df = make_dataset()
+    features, target = prepare_features(df)
+
+    model = train_logistic_regression(
+        features,
+        target,
+        random_state=123,
+    )
+
+    assert model.random_state == 123
