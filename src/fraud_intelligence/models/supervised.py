@@ -42,7 +42,7 @@ def train_logistic_regression(
     random_state: int = 42,
 ) -> LogisticRegression:
     model = LogisticRegression(
-        max_iter=1000,
+        max_iter=3000,
         class_weight="balanced",
         random_state=random_state,
     )
