@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState, useEffect } from "react";
 
 const API_URL = "https://ai-fraud-intelligence.onrender.com";
 
@@ -6,12 +6,48 @@ function App() {
   const [amount, setAmount] = useState(1000);
   const [time, setTime] = useState(3600);
 
+  const [apiOnline, setApiOnline] = useState(false);
+
+  useEffect(() => {
+  const checkApiHealth = async () => {
+    try {
+      const response = await fetch(`${API_URL}/health`);
+
+      if (response.ok) {
+        setApiOnline(true);
+      } else {
+        setApiOnline(false);
+      }
+    } catch (error) {
+      setApiOnline(false);
+    }
+  };
+
+  checkApiHealth();
+
+  const interval = setInterval(checkApiHealth, 30000);
+
+  return () => clearInterval(interval);
+}, []);
+
   const [supervised, setSupervised] = useState(null);
   const [unsupervised, setUnsupervised] = useState(null);
 
   const [loadingSupervised, setLoadingSupervised] = useState(false);
   const [loadingUnsupervised, setLoadingUnsupervised] = useState(false);
   const [error, setError] = useState("");
+  const [history, setHistory] = useState(() => {
+    try {
+    const savedHistory = localStorage.getItem("fraudTransactionHistory");
+ return savedHistory ? JSON.parse(savedHistory) : [];
+ } catch {
+ return [];
+ }
+ });
+
+ useEffect(() => {
+    localStorage.setItem("fraudTransactionHistory", JSON.stringify(history));
+ }, [history]);
 
   const predictSupervised = async () => {
     setLoadingSupervised(true);
@@ -35,6 +71,7 @@ function App() {
 
       const data = await response.json();
       setSupervised(data);
+      return data;
     } catch (err) {
       setError(
         "Could not connect to the FastAPI backend. Make sure the backend is running on port 8000."
@@ -66,6 +103,7 @@ function App() {
 
       const data = await response.json();
       setUnsupervised(data);
+      return data;
     } catch (err) {
       setError(
         "Could not connect to the FastAPI backend. Make sure the backend is running on port 8000."
@@ -76,8 +114,44 @@ function App() {
   };
 
   const runAnalysis = async () => {
-    await Promise.all([predictSupervised(), predictUnsupervised()]);
-  };
+  const numericAmount = Number(amount);
+  const numericTime = Number(time);
+
+  if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+    setError("Transaction amount must be greater than 0.");
+    return;
+  }
+
+  if (!Number.isFinite(numericTime) || numericTime < 0) {
+    setError("Transaction time must be 0 or greater.");
+    return;
+  }
+
+  try {
+    const [supervisedResult, unsupervisedResult] = await Promise.all([
+      predictSupervised(),
+      predictUnsupervised()
+    ]);
+
+    const newTransaction = {
+      id: Date.now(),
+      amount: amount,
+      time: time,
+      fraud: supervisedResult.prediction === 1,
+      probability: supervisedResult.fraud_probability,
+      anomaly: unsupervisedResult.anomaly === 1,
+      date: new Date().toLocaleString(),
+    };
+
+    setHistory((previousHistory) => [
+      newTransaction,
+      ...previousHistory,
+    ]);
+
+  } catch (error) {
+    console.error("Analysis failed:", error);
+  }
+};
 
   const isFraud = supervised?.prediction === 1;
   const isAnomaly = unsupervised?.anomaly === 1;
@@ -101,8 +175,14 @@ function App() {
         </div>
 
         <div style={styles.status}>
-          <span style={styles.statusDot}></span>
-          API ONLINE
+          <span
+  style={{
+    ...styles.statusDot,
+    backgroundColor: apiOnline ? "#22c55e" : "#ef4444",
+  }}
+></span>
+
+{apiOnline ? "API ONLINE" : "API OFFLINE"}
         </div>
       </header>
 
@@ -149,7 +229,7 @@ function App() {
         <section style={styles.grid}>
           <div style={styles.resultCard}>
             <div style={styles.cardHeader}>
-              <span style={styles.icon}>◉</span>
+              <span style={styles.icon}>â—‰</span>
               <div>
                 <h2 style={styles.cardTitle}>Supervised Detection</h2>
                 <p style={styles.cardSubtitle}>Classification model</p>
@@ -208,7 +288,7 @@ function App() {
 
           <div style={styles.resultCard}>
             <div style={styles.cardHeader}>
-              <span style={styles.icon}>◇</span>
+              <span style={styles.icon}>â—‡</span>
               <div>
                 <h2 style={styles.cardTitle}>Anomaly Detection</h2>
                 <p style={styles.cardSubtitle}>Isolation Forest model</p>
@@ -268,10 +348,94 @@ function App() {
             />
           </div>
         </section>
+        <section style={styles.historySection}>
+  <div style={styles.historyHeader}>
+    <div>
+      <h2 style={styles.historyTitle}>Transaction History</h2>
+      <p style={styles.historySubtitle}>
+        Recent fraud detection analyses
+      </p>
+    </div>
+
+    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+      <span style={styles.historyCount}>
+        {history.length} Transactions
+      </span>
+
+      {history.length > 0 && (
+        <button
+          style={{
+            padding: "8px 14px",
+            borderRadius: "8px",
+            border: "1px solid #ef4444",
+            background: "transparent",
+            color: "#f87171",
+            cursor: "pointer",
+            fontWeight: "600",
+          }}
+          onClick={() => setHistory([])}
+        >
+          Clear History
+        </button>
+      )}
+    </div>
+  </div>
+
+  {history.length === 0 ? (
+    <div style={styles.emptyHistory}>
+      No transactions analyzed yet.
+    </div>
+  ) : (
+    <div style={styles.historyTableWrapper}>
+      <table style={styles.historyTable}>
+        <thead>
+          <tr>
+            <th>Amount</th>
+            <th>Time</th>
+            <th>Fraud Detection</th>
+            <th>Probability</th>
+            <th>Anomaly</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {history.map((transaction) => (
+            <tr key={transaction.id}>
+              <td>${transaction.amount}</td>
+              <td>{transaction.time}</td>
+              <td>
+                {transaction.fraud ? (
+                  <span style={styles.fraudBadge}>FRAUD</span>
+                ) : (
+                  <span style={styles.safeBadge}>SAFE</span>
+                )}
+              </td>
+              <td>
+                {typeof transaction.probability === "number"
+                  ? `${(transaction.probability * 100).toFixed(2)}%`
+                  : "N/A"}
+              </td>
+              <td>
+                {transaction.anomaly ? (
+                  <span style={styles.anomalyBadge}>ANOMALY</span>
+                ) : (
+                  <span style={styles.normalBadge}>NORMAL</span>
+                )}
+              </td>
+              <td>{transaction.date}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )}
+</section>
+
       </main>
 
       <footer style={styles.footer}>
-        AI Fraud Intelligence • FastAPI + React + Machine Learning
+        AI Fraud Intelligence â€¢ FastAPI + React + Machine Learning
       </footer>
     </div>
   );
@@ -621,6 +785,109 @@ const styles = {
     fontSize: "14px",
   },
 
+  historySection: {
+    marginTop: "24px",
+    background: "#111827",
+    border: "1px solid #1f2937",
+    borderRadius: "18px",
+    padding: "28px",
+    overflow: "hidden",
+  },
+
+  historyHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "20px",
+    marginBottom: "20px",
+  },
+
+  historyTitle: {
+    margin: 0,
+    fontSize: "22px",
+    color: "#f8fafc",
+  },
+
+  historySubtitle: {
+    margin: "7px 0 0",
+    color: "#94a3b8",
+    fontSize: "14px",
+  },
+
+  historyCount: {
+    padding: "8px 12px",
+    borderRadius: "999px",
+    background: "#172554",
+    border: "1px solid #1e40af",
+    color: "#93c5fd",
+    fontSize: "12px",
+    fontWeight: "700",
+    whiteSpace: "nowrap",
+  },
+
+  emptyHistory: {
+    padding: "30px",
+    textAlign: "center",
+    color: "#64748b",
+    border: "1px dashed #334155",
+    borderRadius: "12px",
+  },
+
+  historyTableWrapper: {
+    width: "100%",
+    overflowX: "auto",
+  },
+
+  historyTable: {
+    width: "100%",
+    borderCollapse: "collapse",
+    minWidth: "850px",
+  },
+
+  fraudBadge: {
+    display: "inline-block",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    background: "#450a0a",
+    border: "1px solid #991b1b",
+    color: "#fca5a5",
+    fontSize: "11px",
+    fontWeight: "700",
+  },
+
+  safeBadge: {
+    display: "inline-block",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    background: "#052e16",
+    border: "1px solid #166534",
+    color: "#86efac",
+    fontSize: "11px",
+    fontWeight: "700",
+  },
+
+  anomalyBadge: {
+    display: "inline-block",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    background: "#450a0a",
+    border: "1px solid #991b1b",
+    color: "#fca5a5",
+    fontSize: "11px",
+    fontWeight: "700",
+  },
+
+  normalBadge: {
+    display: "inline-block",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    background: "#0f172a",
+    border: "1px solid #334155",
+    color: "#94a3b8",
+    fontSize: "11px",
+    fontWeight: "700",
+  },
+
   footer: {
     borderTop: "1px solid #1f2937",
     padding: "24px",
@@ -631,3 +898,11 @@ const styles = {
 };
 
 export default App;
+
+
+
+
+
+
+
+
